@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dots and Boxes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+
+        .dot-game {
+            display: grid;
+            gap: 0;
+            position: relative;
+        }
+        
+        .dot {
+            width: 1rem;
+            height: 1rem;
+            background-color: #4a5568;
+            border-radius: 50%;
+            z-index: 10;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            transform: scale(1);
+            position: absolute;
+        }
+
+        .dot.selected {
+            transform: scale(1.2);
+            background-color: #2563eb;
+        }
+
+        .line {
+            position: absolute;
+            transition: background-color 0.4s;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .horizontal-line {
+            height: 5px;
+            width: var(--line-length);
+        }
+
+        .vertical-line {
+            width: 5px;
+            height: var(--line-length);
+        }
+
+        .box {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #fff;
+            animation: spin 1s ease infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 text-gray-800">
+
+    <div class="bg-white rounded-2xl shadow-xl p-8 max-w-2xl w-full flex flex-col items-center space-y-8">
+        <h1 class="text-4xl font-bold text-gray-800">Dots and Boxes</h1>
+
+        <!-- Player selection menu -->
+        <div id="setup-menu" class="space-y-4 text-center">
+            <p class="text-xl font-semibold">How many players?</p>
+            <div class="flex space-x-4">
+                <button class="player-select-button px-6 py-3 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors" data-players="2">2 Players</button>
+                <button class="player-select-button px-6 py-3 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors" data-players="3">3 Players</button>
+                <button class="player-select-button px-6 py-3 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors" data-players="4">4 Players</button>
+            </div>
+            <button id="how-to-play-button" class="px-6 py-3 bg-gray-400 text-white font-bold rounded-full shadow-lg hover:bg-gray-500 transition-colors mt-4">How to Play</button>
+        </div>
+
+        <!-- Game board and status displays -->
+        <div id="game-ui" class="hidden flex flex-col items-center w-full space-y-4">
+            <div id="status" class="text-lg font-semibold h-8 text-center">
+                <span id="current-player-text"></span>
+            </div>
+            
+            <div id="score-container" class="flex flex-wrap justify-center gap-4 text-xl font-bold"></div>
+
+            <div id="game-container" class="w-full max-w-md aspect-square relative"></div>
+            
+            <button id="analysis-button" class="px-6 py-3 bg-indigo-500 text-white font-bold rounded-full shadow-lg hover:bg-indigo-600 transform hover:scale-105 transition-transform duration-200">
+                Get Game Analysis ✨
+            </button>
+            <button id="reset-button" class="px-6 py-3 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transform hover:scale-105 transition-transform duration-200">
+                Restart Game
+            </button>
+        </div>
+
+        <!-- Message Box Modal -->
+        <div id="message-container" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
+            <div class="message-box bg-white p-6 rounded-lg shadow-2xl text-center border-2 border-gray-200">
+                <p id="message-text" class="text-xl font-bold mb-4"></p>
+                <button id="close-message" class="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors">OK</button>
+            </div>
+        </div>
+        
+        <!-- How-to-Play Modal -->
+        <div id="how-to-play-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 space-y-4">
+                <div class="relative">
+                    <button id="close-how-to-play" class="absolute top-0 right-0 text-gray-500 hover:text-gray-800 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <h2 class="text-3xl font-bold text-gray-800 text-center">How to Play</h2>
+                </div>
+                <div class="text-gray-700 space-y-4 overflow-y-auto max-h-[60vh] pr-4">
+                    <p><strong>Objective:</strong> The goal is to claim more boxes than your opponent. You claim a box by drawing the fourth side of it.</p>
+                    <p><strong>Gameplay:</strong></p>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li>The game is played on a grid of dots.</li>
+                        <li>Players take turns drawing a single line between two adjacent dots.</li>
+                        <li>To draw a line, tap on one dot, then tap on a neighboring dot (horizontally or vertically).</li>
+                        <li>Once a line is drawn, your turn ends and the next player's begins.</li>
+                    </ul>
+                    <p><strong>Claiming a Box:</strong></p>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li>When you draw a line that completes the fourth side of any square on the board, you **claim that box** with your color.</li>
+                        <li>You get to take **another turn** immediately, which is key to a winning strategy.</li>
+                        <li>A single line can complete multiple boxes at once, and you get a turn for each one!</li>
+                    </ul>
+                    <p><strong>Winning:</strong> The game ends when all possible lines have been drawn and all boxes have been claimed. The player with the most boxes wins!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const setupMenu = document.getElementById('setup-menu');
+            const gameUI = document.getElementById('game-ui');
+            const playerSelectButtons = document.querySelectorAll('.player-select-button');
+            const howToPlayButton = document.getElementById('how-to-play-button');
+            const howToPlayModal = document.getElementById('how-to-play-modal');
+            const closeHowToPlayButton = document.getElementById('close-how-to-play');
+            const gameContainer = document.getElementById('game-container');
+            const statusDisplay = document.getElementById('current-player-text');
+            const scoreContainer = document.getElementById('score-container');
+            const analysisButton = document.getElementById('analysis-button');
+            const resetButton = document.getElementById('reset-button');
+            const messageContainer = document.getElementById('message-container');
+            const messageText = document.getElementById('message-text');
+            const closeMessageButton = document.getElementById('close-message');
+            
+            const gridSize = 6;
+            const boardSize = gridSize - 1;
+            const apiKey = "";
+            const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=" + apiKey;
+            
+            let numPlayers;
+            let currentPlayer = 0;
+            let playerColors = [];
+            let playerScores = {};
+            let lines = {}; // key: `r1,c1,r2,c2`
+            let boxes = {}; // key: `row,col`
+            let gameActive = false;
+            let firstDot = null;
+            let linesDrawn = 0;
+
+            const showMessage = (message) => {
+                messageText.innerHTML = message;
+                messageContainer.classList.remove('hidden');
+            };
+
+            const initializeGame = () => {
+                gameContainer.innerHTML = '';
+                lines = {};
+                boxes = {};
+                firstDot = null;
+                currentPlayer = 0;
+                playerScores = {};
+                playerColors = ['#4CAF50', '#F44336', '#2196F3', '#FFC107'];
+                linesDrawn = 0;
+                
+                for (let i = 1; i <= numPlayers; i++) {
+                    playerScores[i] = 0;
+                }
+                
+                gameActive = true;
+                updateStatus();
+                updateScores();
+                createBoard();
+            };
+
+            const updateStatus = () => {
+                statusDisplay.textContent = `Player ${currentPlayer + 1}'s Turn`;
+                statusDisplay.style.color = playerColors[currentPlayer];
+            };
+
+            const updateScores = () => {
+                scoreContainer.innerHTML = '';
+                for (let i = 1; i <= numPlayers; i++) {
+                    const scoreDiv = document.createElement('div');
+                    scoreDiv.className = 'flex items-center space-x-2';
+                    scoreDiv.style.color = playerColors[i - 1];
+                    scoreDiv.innerHTML = `<span>Player ${i}:</span><span class="text-2xl" id="player${i}-score">${playerScores[i]}</span>`;
+                    scoreContainer.appendChild(scoreDiv);
+                }
+            };
+
+            const createBoard = () => {
+                const gameSize = gameContainer.offsetWidth;
+                const dotSpacing = gameSize / (gridSize - 1);
+                
+                for (let row = 0; row < gridSize; row++) {
+                    for (let col = 0; col < gridSize; col++) {
+                        const dot = document.createElement('div');
+                        dot.classList.add('dot');
+                        dot.style.top = `${row * dotSpacing - 8}px`; // Adjust for dot size
+                        dot.style.left = `${col * dotSpacing - 8}px`; // Adjust for dot size
+                        dot.dataset.row = row;
+                        dot.dataset.col = col;
+                        dot.addEventListener('click', handleDotClick);
+                        gameContainer.appendChild(dot);
+                    }
+                }
+
+                // Initialize box data structures
+                for (let row = 0; row < boardSize; row++) {
+                    for (let col = 0; col < boardSize; col++) {
+                        const boxKey = `${row},${col}`;
+                        boxes[boxKey] = {
+                            owner: null,
+                            sides: [
+                                { r1: row, c1: col, r2: row, c2: col + 1 },      // top
+                                { r1: row + 1, c1: col, r2: row + 1, c2: col + 1 }, // bottom
+                                { r1: row, c1: col, r2: row + 1, c2: col },      // left
+                                { r1: row, c1: col + 1, r2: row + 1, c2: col + 1 }  // right
+                            ]
+                        };
+                    }
+                }
+            };
+            
+            const handleDotClick = (event) => {
+                if (!gameActive) return;
+                const clickedDot = event.target;
+                
+                if (firstDot) {
+                    const lineInfo = findLine(firstDot, clickedDot);
+                    if (lineInfo && !isLineDrawn(lineInfo)) {
+                        drawLine(lineInfo);
+                        
+                        let boxCaptured = checkAndClaimBoxes(lineInfo);
+
+                        linesDrawn++;
+                        
+                        if (!boxCaptured) {
+                            currentPlayer = (currentPlayer + 1) % numPlayers;
+                        }
+                        updateScores();
+                        updateStatus();
+                        checkGameEnd();
+                    }
+                    firstDot.classList.remove('selected');
+                    firstDot = null;
+                } else {
+                    firstDot = clickedDot;
+                    firstDot.classList.add('selected');
+                }
+            };
+
+            const findLine = (dot1, dot2) => {
+                const [r1, c1] = [parseInt(dot1.dataset.row), parseInt(dot1.dataset.col)];
+                const [r2, c2] = [parseInt(dot2.dataset.row), parseInt(dot2.dataset.col)];
+                
+                if ((r1 === r2 && Math.abs(c1 - c2) === 1) || (c1 === c2 && Math.abs(r1 - r2) === 1)) {
+                    const sortedDots = [
+                        { r: Math.min(r1, r2), c: Math.min(c1, c2) },
+                        { r: Math.max(r1, r2), c: Math.max(c1, c2) }
+                    ];
+                    return { key: `${sortedDots[0].r},${sortedDots[0].c},${sortedDots[1].r},${sortedDots[1].c}`, sortedDots };
+                }
+                
+                return null;
+            };
+            
+            const isLineDrawn = (lineInfo) => {
+                return lines[lineInfo.key];
+            };
+
+            const drawLine = (lineInfo) => {
+                const { key, sortedDots } = lineInfo;
+                const line = document.createElement('div');
+                const dotSpacing = gameContainer.offsetWidth / (gridSize - 1);
+                
+                if (sortedDots[0].r === sortedDots[1].r) { // Horizontal line
+                    line.classList.add('line', 'horizontal-line');
+                    line.style.top = `${sortedDots[0].r * dotSpacing + 5}px`;
+                    line.style.left = `${sortedDots[0].c * dotSpacing + 5}px`;
+                    line.style.width = `${dotSpacing - 10}px`;
+                } else { // Vertical line
+                    line.classList.add('line', 'vertical-line');
+                    line.style.top = `${sortedDots[0].r * dotSpacing + 5}px`;
+                    line.style.left = `${sortedDots[0].c * dotSpacing + 5}px`;
+                    line.style.height = `${dotSpacing - 10}px`;
+                }
+                
+                line.style.backgroundColor = playerColors[currentPlayer];
+                gameContainer.appendChild(line);
+                lines[key] = true;
+            };
+
+            const checkAndClaimBoxes = (lineInfo) => {
+                let boxCaptured = false;
+                
+                for (let r = 0; r < boardSize; r++) {
+                    for (let c = 0; c < boardSize; c++) {
+                        const boxKey = `${r},${c}`;
+                        const box = boxes[boxKey];
+                        if (box.owner !== null) continue;
+
+                        const sides = box.sides.map(side => {
+                            const sorted = [
+                                { r: Math.min(side.r1, side.r2), c: Math.min(side.c1, side.c2) },
+                                { r: Math.max(side.r1, side.r2), c: Math.max(side.c1, side.c2) }
+                            ];
+                            return `${sorted[0].r},${sorted[0].c},${sorted[1].r},${sorted[1].c}`;
+                        });
+                        
+                        const completedSides = sides.filter(key => lines[key]).length;
+                        
+                        if (completedSides === 4) {
+                            claimBox(boxKey);
+                            boxCaptured = true;
+                        }
+                    }
+                }
+                return boxCaptured;
+            };
+            
+            const claimBox = (boxKey) => {
+                const [row, col] = boxKey.split(',').map(Number);
+                const dotSpacing = gameContainer.offsetWidth / (gridSize - 1);
+
+                const boxElement = document.createElement('div');
+                boxElement.classList.add('box');
+                boxElement.style.width = `${dotSpacing - 10}px`;
+                boxElement.style.height = `${dotSpacing - 10}px`;
+                boxElement.style.top = `${row * dotSpacing + 5}px`;
+                boxElement.style.left = `${col * dotSpacing + 5}px`;
+                boxElement.style.backgroundColor = playerColors[currentPlayer];
+                boxElement.textContent = `P${currentPlayer + 1}`;
+                gameContainer.appendChild(boxElement);
+                
+                boxes[boxKey].owner = currentPlayer;
+                playerScores[currentPlayer + 1]++;
+            };
+
+            const checkGameEnd = () => {
+                const totalBoxes = boardSize * boardSize;
+                const completedBoxes = Object.values(boxes).filter(b => b.owner !== null).length;
+                
+                if (completedBoxes === totalBoxes) {
+                    gameActive = false;
+                    setTimeout(() => {
+                        getFinalAnalysis();
+                    }, 500);
+                }
+            };
+            
+            const getGameAnalysis = async () => {
+                analysisButton.innerHTML = `<span class="loading-spinner"></span>`;
+                analysisButton.disabled = true;
+
+                const scoreString = Object.entries(playerScores).map(([p, s]) => `Player ${p}: ${s} points`).join(', ');
+                
+                const prompt = `Analyze the current state of a Dots and Boxes game.
+                
+                Current scores are: ${scoreString}.
+                Current player is Player ${currentPlayer + 1}.
+                
+                Provide a brief, single-paragraph analysis (less than 50 words) of the game so far. Mention the current leader, the strategic situation, and a key area of the board to focus on. Do not give away the exact move to make, but give a hint of what to look out for.`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }]
+                };
+                
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        showMessage(`**AI Analysis:**<br>${text}`);
+                    } else {
+                        showMessage('AI analysis is not available at the moment.');
+                    }
+                } catch (error) {
+                    console.error("Gemini API error:", error);
+                    showMessage('Failed to get AI analysis. Please try again.');
+                } finally {
+                    analysisButton.innerHTML = "Get Game Analysis ✨";
+                    analysisButton.disabled = false;
+                }
+            };
+
+            const getFinalAnalysis = async () => {
+                const winnerEntries = Object.entries(playerScores).sort(([, a], [, b]) => b - a);
+                const winner = winnerEntries[0][0];
+                const finalScores = winnerEntries.map(([p, s]) => `Player ${p}: ${s} boxes`).join(', ');
+
+                const prompt = `The game has ended. The final scores are: ${finalScores}.
+                
+                Write a brief, single-paragraph summary of the game, highlighting the winner and the key moments that led to their victory.`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }]
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        showMessage(`**Game Over!**<br>${text}`);
+                    } else {
+                        showMessage('Game over. No analysis available.');
+                    }
+                } catch (error) {
+                    console.error("Gemini API error:", error);
+                    showMessage('Game over. Failed to get a final summary.');
+                }
+            };
+
+            // Event listeners
+            playerSelectButtons.forEach(button => {
+                button.addEventListener('click', (event) => {
+                    numPlayers = parseInt(event.target.dataset.players);
+                    setupMenu.classList.add('hidden');
+                    gameUI.classList.remove('hidden');
+                    initializeGame();
+                });
+            });
+
+            resetButton.addEventListener('click', () => {
+                setupMenu.classList.remove('hidden');
+                gameUI.classList.add('hidden');
+                initializeGame();
+            });
+
+            analysisButton.addEventListener('click', getGameAnalysis);
+            closeMessageButton.addEventListener('click', () => messageContainer.classList.add('hidden'));
+
+            howToPlayButton.addEventListener('click', () => {
+                howToPlayModal.classList.remove('hidden');
+            });
+
+            closeHowToPlayButton.addEventListener('click', () => {
+                howToPlayModal.classList.add('hidden');
+            });
+        });
+    </script>
+</body>
+</html>
